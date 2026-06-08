@@ -1,0 +1,252 @@
+generator client { provider = "prisma-client-js" }
+datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+
+
+// -----------------------------------------------------------------------------
+// V4 GOVERNMENT OPERATIONS CONCEPTS
+// These models represent operational capabilities used by mature revenue systems.
+// They are separated from core assessment/payment tables so each workflow can
+// evolve independently while still linking back to taxpayers, invoices, users,
+// and audit logs.
+// -----------------------------------------------------------------------------
+
+enum CalendarEventType { FILING_DUE PAYMENT_DUE APPEAL_DUE HEARING INSPECTION REPORT_DUE AMNESTY_END CUSTOM }
+enum CalendarEventStatus { SCHEDULED COMPLETED MISSED CANCELLED }
+enum CaseType { AUDIT DISPUTE COLLECTION ENFORCEMENT REFUND_REVIEW COMPLIANCE_REVIEW FRAUD_REVIEW DOCUMENT_REVIEW GENERAL }
+enum CaseStatus { OPEN ASSIGNED UNDER_REVIEW WAITING_FOR_TAXPAYER ESCALATED RESOLVED CLOSED }
+enum CollectionStage { REMINDER FINAL_NOTICE PENALTY_APPLIED PAYMENT_PLAN ENFORCEMENT_REVIEW ENFORCEMENT_ACTION CLOSED }
+enum PaymentPlanStatus { REQUESTED APPROVED ACTIVE DEFAULTED COMPLETED CANCELLED }
+enum PenaltyRunStatus { SCHEDULED RUNNING COMPLETED FAILED CANCELLED }
+enum DataQualitySeverity { LOW MEDIUM HIGH CRITICAL }
+enum DataQualityStatus { OPEN ACKNOWLEDGED FIXED IGNORED }
+enum WorkflowTrigger { REFUND_REQUEST ASSESSMENT_ADJUSTMENT TAX_RULE_CHANGE PAYMENT_REVERSAL CREDIT_NOTE DOCUMENT_REJECTION CLEARANCE_REQUEST CUSTOM }
+enum WorkflowStepType { ROLE_APPROVAL USER_APPROVAL NOTIFICATION WAIT_CONDITION SYSTEM_ACTION }
+enum ClearanceStatus { REQUESTED UNDER_REVIEW APPROVED REJECTED REVOKED EXPIRED }
+enum PublicServiceType { TAX_ESTIMATE TIN_CHECK FORM_DOWNLOAD GUIDE COMPLAINT VERIFICATION }
+
+model ComplianceCalendarEvent {
+  id String @id @default(cuid())
+  tenantId String
+  title String
+  description String?
+  type CalendarEventType
+  status CalendarEventStatus @default(SCHEDULED)
+  taxpayerId String?
+  branchId String?
+  dueAt DateTime
+  graceEndsAt DateTime?
+  relatedEntity String?
+  relatedEntityId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CaseFile {
+  id String @id @default(cuid())
+  tenantId String
+  caseNo String
+  type CaseType
+  status CaseStatus @default(OPEN)
+  taxpayerId String?
+  assignedToId String?
+  priority String @default("NORMAL")
+  subject String
+  summary String?
+  resolution String?
+  openedAt DateTime @default(now())
+  closedAt DateTime?
+  tasks CaseTask[]
+  notes CaseNote[]
+  @@unique([tenantId, caseNo])
+}
+
+model CaseTask {
+  id String @id @default(cuid())
+  caseId String
+  case CaseFile @relation(fields:[caseId], references:[id])
+  title String
+  assigneeId String?
+  dueAt DateTime?
+  completedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model CaseNote {
+  id String @id @default(cuid())
+  caseId String
+  case CaseFile @relation(fields:[caseId], references:[id])
+  authorId String?
+  note String
+  internal Boolean @default(true)
+  createdAt DateTime @default(now())
+}
+
+model CollectionCase {
+  id String @id @default(cuid())
+  tenantId String
+  collectionNo String
+  taxpayerId String
+  invoiceId String?
+  stage CollectionStage @default(REMINDER)
+  assignedOfficerId String?
+  outstandingAmount Decimal @db.Decimal(14,2)
+  nextActionAt DateTime?
+  closedAt DateTime?
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  paymentPlans PaymentPlan[]
+  @@unique([tenantId, collectionNo])
+}
+
+model PaymentPlan {
+  id String @id @default(cuid())
+  tenantId String
+  planNo String
+  taxpayerId String
+  invoiceId String
+  collectionCaseId String?
+  collectionCase CollectionCase? @relation(fields:[collectionCaseId], references:[id])
+  status PaymentPlanStatus @default(REQUESTED)
+  totalAmount Decimal @db.Decimal(14,2)
+  installmentCount Int
+  startDate DateTime
+  approvedById String?
+  approvedAt DateTime?
+  installments PaymentPlanInstallment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([tenantId, planNo])
+}
+
+model PaymentPlanInstallment {
+  id String @id @default(cuid())
+  planId String
+  plan PaymentPlan @relation(fields:[planId], references:[id])
+  sequence Int
+  dueDate DateTime
+  amount Decimal @db.Decimal(14,2)
+  paidAmount Decimal @db.Decimal(14,2) @default(0)
+  paidAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+model PenaltyAutomationRun {
+  id String @id @default(cuid())
+  tenantId String
+  runNo String
+  status PenaltyRunStatus @default(SCHEDULED)
+  startedAt DateTime?
+  completedAt DateTime?
+  invoicesChecked Int @default(0)
+  penaltiesApplied Int @default(0)
+  totalPenalty Decimal @db.Decimal(14,2) @default(0)
+  errorMessage String?
+  createdAt DateTime @default(now())
+  @@unique([tenantId, runNo])
+}
+
+model TaxClearanceCertificate {
+  id String @id @default(cuid())
+  tenantId String
+  certificateNo String
+  verificationCode String @unique
+  taxpayerId String
+  status ClearanceStatus @default(REQUESTED)
+  requestedAt DateTime @default(now())
+  reviewedById String?
+  reviewedAt DateTime?
+  issuedAt DateTime?
+  expiresAt DateTime?
+  rejectionReason String?
+  conditions Json?
+  @@unique([tenantId, certificateNo])
+}
+
+model DataQualityIssue {
+  id String @id @default(cuid())
+  tenantId String
+  severity DataQualitySeverity
+  status DataQualityStatus @default(OPEN)
+  entity String
+  entityId String?
+  ruleKey String
+  title String
+  description String
+  suggestedFix String?
+  detectedAt DateTime @default(now())
+  resolvedAt DateTime?
+}
+
+model WorkflowDefinition {
+  id String @id @default(cuid())
+  tenantId String
+  name String
+  trigger WorkflowTrigger
+  active Boolean @default(false)
+  version Int @default(1)
+  condition Json?
+  steps WorkflowStep[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkflowStep {
+  id String @id @default(cuid())
+  workflowId String
+  workflow WorkflowDefinition @relation(fields:[workflowId], references:[id])
+  sequence Int
+  type WorkflowStepType
+  role String?
+  userId String?
+  config Json?
+}
+
+model WorkflowInstance {
+  id String @id @default(cuid())
+  tenantId String
+  workflowId String
+  entity String
+  entityId String
+  currentStep Int @default(1)
+  status ApprovalStatus @default(PENDING)
+  startedAt DateTime @default(now())
+  completedAt DateTime?
+}
+
+model PublicServiceRequest {
+  id String @id @default(cuid())
+  tenantId String?
+  type PublicServiceType
+  trackingNo String @unique
+  requesterName String?
+  requesterEmail String?
+  payload Json
+  status String @default("RECEIVED")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ApiClient {
+  id String @id @default(cuid())
+  tenantId String
+  name String
+  clientId String @unique
+  hashedSecret String
+  scopes String[]
+  active Boolean @default(true)
+  rateLimitPerMinute Int @default(120)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ApiRequestLog {
+  id String @id @default(cuid())
+  clientId String?
+  path String
+  method String
+  statusCode Int
+  ipAddress String?
+  durationMs Int?
+  createdAt DateTime @default(now())
+}

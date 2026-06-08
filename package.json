@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "docs:check": "node -e \"console.log('Docs are in /docs. Start with docs/LEARNING_PATH.md')\"",
+    "audit:concepts": "node -e \"console.log('V4 concepts: clearance, calendar, cases, collections, plans, penalties, data quality, workflow designer, public portal, developer portal')\""
+  },
+  "dependencies": {},
+  "devDependencies": {},
+  "name": "taxing-system-nextjs-v4-learning-production",
+  "version": "4.0.0"
+}

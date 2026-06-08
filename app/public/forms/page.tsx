@@ -1,0 +1,1 @@
+export default function Page(){return <main className="mx-auto max-w-3xl p-8"><div className="card"><h1 className="text-3xl font-black">Forms & Guides</h1><ul className="mt-4 list-disc pl-6 text-slate-700"><li>Taxpayer registration guide</li><li>Filing guide</li><li>Payment guide</li><li>Dispute guide</li><li>Clearance certificate guide</li></ul></div></main>}
