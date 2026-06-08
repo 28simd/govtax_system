@@ -3,7 +3,11 @@ import Link from 'next/link';
  * Open, unauthenticated services for taxpayers/citizens.
  */
 export default function Page(){
-  const services=[['Tax Calculator','/public/tax-calculator'],['TIN Check','/public/tin-check'],['Forms & Guides','/public/forms'],['Submit Complaint','/public/complaint'],['Verify Document','/verify']];
+  const services=[['Tax Calculator','/public/tax-calculator'],
+                  ['TIN Check','/public/tin-check'],
+                  ['Forms & Guides','/public/forms'],
+                  ['Submit Complaint','/public/complaint'],
+                  ['Verify Document','/verify']];
   return <main className="mx-auto max-w-5xl p-8">
     <div className="card">
       <h1 className="text-4xl font-black">Public Tax Services</h1>
